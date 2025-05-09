@@ -9,6 +9,7 @@ from tensorflow.keras.layers import Dense, Input
 import matplotlib.pyplot as plt
 import streamlit as st
 import pandas as pd
+from scipy.stats import norm
 
 # Page configuration
 st.set_page_config(
@@ -212,6 +213,21 @@ else:
     # Final loss display
     loss_placeholder.text("\n".join([f"Epoch {e}, Loss: {l:.6f}" for e, l in loss_list]))
     st.success("Training complete!")
+    
+    # Generate and display comparison graph after training
+    st.subheader("Comparison of PINN vs Analytical Solution")
+    S_test = np.linspace(0, 200, 100).reshape(-1, 1)
+    t_test = np.zeros_like(S_test)  # Evaluate at t=0
+    V_pred = pinn_model.predict(tf.concat([S_test, t_test], axis=1))
+    
+    # Calculate analytical solution (Black-Scholes formula for European call)
+    d1 = (np.log(S_test/K) + (r + 0.5*sigma**2)*T) / (sigma*np.sqrt(T))
+    d2 = d1 - sigma*np.sqrt(T)
+    V_analytical = S_test * norm.cdf(d1) - K * np.exp(-r*T) * norm.cdf(d2)
+    
+    # Plot comparison
+    fig = plot_results(S_test, V_pred, V_analytical)
+    st.pyplot(fig)
     
     # Add a button to go back to static view
     if st.button("Show Static Results", use_container_width=True):
