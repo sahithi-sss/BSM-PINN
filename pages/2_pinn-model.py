@@ -74,7 +74,7 @@ def bs_pde_loss(model, S, t):
 
 # Define the boundary condition loss
 def boundary_loss(model):
-    S_boundary = np.linspace(0, 200, 100).reshape(-1, 1)
+    S_boundary = np.linspace(0, 150, 100).reshape(-1, 1)
     S_boundary = tf.convert_to_tensor(S_boundary, dtype=tf.float32)
     
     T_boundary = np.ones_like(S_boundary) * T
@@ -93,7 +93,7 @@ def train_pinn(model, epochs=5000, lr=0.001):
     loss_history = []
     
     for epoch in range(epochs):
-        S_sample = tf.random.uniform((100, 1), minval=0, maxval=200, dtype=tf.float32)
+        S_sample = tf.random.uniform((100, 1), minval=0, maxval=150, dtype=tf.float32)
         t_sample = tf.random.uniform((100, 1), minval=0, maxval=T, dtype=tf.float32)
 
         with tf.GradientTape() as tape:
@@ -122,12 +122,13 @@ def train_pinn(model, epochs=5000, lr=0.001):
     return loss_history
 
 # Function to plot results
-def plot_results(S_test, V_pred, V_analytical=None):
+def plot_results(S_test, V_pred, V_analytical=None, show_intrinsic=False):
     fig, ax = plt.subplots(figsize=(10, 6))
     ax.plot(S_test, V_pred, label="Predicted Price (PINN)")
     if V_analytical is not None:
         ax.plot(S_test, V_analytical, '--', label="Analytical Solution")
-    ax.plot(S_test, np.maximum(S_test - K, 0), ':', label="Intrinsic Value")
+    if show_intrinsic:
+        ax.plot(S_test, np.maximum(S_test - K, 0), ':', label="Intrinsic Value")
     ax.set_xlabel("Stock Price (S)")
     ax.set_ylabel("Option Price (V)")
     ax.legend()
@@ -144,16 +145,16 @@ if 'static_results' not in st.session_state:
 
 # Pre-computed loss values for static display
 static_loss_list = [
-    (0, 1703.023926),
-    (500, 385.576721),
-    (1000, 127.829712),
-    (1500, 48.017029),
-    (2000, 22.418875),
-    (2500, 8.966265),
-    (3000, 3.887328),
-    (3500, 1.840979),
-    (4000, 1.799492),
-    (4500, 1.340811)
+    (0, 281.740448),
+    (500, 4.062307),
+    (1000, 0.570410),
+    (1500, 0.420799),
+    (2000, 0.292110),
+    (2500, 0.233636),
+    (3000, 0.529828),
+    (3500, 0.164196),
+    (4000, 0.150151),
+    (4500, 0.179937)
 ]
 
 # State to control display
@@ -166,7 +167,8 @@ if not st.session_state.show_dynamic:
     fig_static = plot_results(
         st.session_state.static_results[0],
         st.session_state.static_results[1],
-        np.maximum(st.session_state.static_results[0] - K, 0)
+        np.maximum(st.session_state.static_results[0] - K, 0),
+        show_intrinsic=True
     )
     st.pyplot(fig_static)
     # Show static loss list
@@ -216,7 +218,7 @@ else:
     
     # Generate and display comparison graph after training
     st.subheader("Comparison of PINN vs Analytical Solution")
-    S_test = np.linspace(0, 200, 100).reshape(-1, 1)
+    S_test = np.linspace(0, 150, 100).reshape(-1, 1)
     t_test = np.zeros_like(S_test)  # Evaluate at t=0
     V_pred = pinn_model.predict(tf.concat([S_test, t_test], axis=1))
     
@@ -226,13 +228,8 @@ else:
     V_analytical = S_test * norm.cdf(d1) - K * np.exp(-r*T) * norm.cdf(d2)
     
     # Plot comparison
-    fig = plot_results(S_test, V_pred, V_analytical)
+    fig = plot_results(S_test, V_pred, V_analytical, show_intrinsic=False)
     st.pyplot(fig)
-    
-    # Add a button to go back to static view
-    if st.button("Show Static Results", use_container_width=True):
-        st.session_state.show_dynamic = False
-        st.rerun()
 
 st.markdown("---")
 st.subheader("About PINN Model")
