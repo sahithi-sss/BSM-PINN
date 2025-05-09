@@ -80,7 +80,7 @@ def boundary_loss(model):
     S_boundary = np.linspace(0, 150, 100).reshape(-1, 1)
     S_boundary = tf.convert_to_tensor(S_boundary, dtype=tf.float32)
     
-    T_boundary = np.ones_like(S_boundary) * T
+    T_boundary = tf.ones_like(S_boundary) * T
     V_terminal = tf.maximum(S_boundary - K, 0)  # Payoff function for European Call
 
     V_pred = model(tf.concat([S_boundary, T_boundary], axis=1))
