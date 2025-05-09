@@ -101,10 +101,11 @@ def train_pinn(model, epochs=5000, lr=0.001):
             loss = loss_pde + loss_boundary  # Combined loss
 
         grads = tape.gradient(loss, model.trainable_variables)
-        optimizer.apply_gradients(zip(grads, model.trainable_variables))
+        if grads is not None:  # Add check for None gradients
+            optimizer.apply_gradients(zip(grads, model.trainable_variables))
 
         if epoch % 100 == 0:  # Show more frequent updates
-            loss_history.append(loss.numpy())
+            loss_history.append(float(loss.numpy()))
             status_text.text(f"Epoch {epoch}, Loss: {loss.numpy():.6f}")
             progress_bar.progress(epoch / epochs)
             
@@ -174,7 +175,7 @@ if not st.session_state.show_dynamic:
     # Button to run model dynamically
     if st.button("Run Model Dynamically", use_container_width=True):
         st.session_state.show_dynamic = True
-        st.experimental_rerun()
+        st.rerun()
 else:
     st.subheader("Training Progress")
     # Build and train the PINN model
@@ -212,7 +213,7 @@ else:
     # Add a button to go back to static view
     if st.button("Show Static Results", use_container_width=True):
         st.session_state.show_dynamic = False
-        st.experimental_rerun()
+        st.rerun()
 
 st.markdown("---")
 st.subheader("About PINN Model")
