@@ -230,20 +230,31 @@ else:
     S_test = np.linspace(0, 150, 100).reshape(-1, 1)
     t_test = np.ones_like(S_test) * 0.5  # Mid-time horizon (t = 0.5)
     
+    # Convert all inputs to TensorFlow tensors with consistent dtype
     S_test_tensor = tf.convert_to_tensor(S_test, dtype=tf.float32)
     t_test_tensor = tf.convert_to_tensor(t_test, dtype=tf.float32)
+    K_tensor = tf.constant(K, dtype=tf.float32)
+    T_tensor = tf.constant(T, dtype=tf.float32)
+    r_tensor = tf.constant(r, dtype=tf.float32)
+    sigma_tensor = tf.constant(sigma, dtype=tf.float32)
     
     V_pred = pinn_model(tf.concat([S_test_tensor, t_test_tensor], axis=1))
     
     # Calculate analytical solution (Black-Scholes formula for European call)
-    epsilon = 1e-10  # Small number to avoid log(0)
-    S_test_safe = tf.maximum(S_test, epsilon)  # Ensure positive values
-    d1 = (tf.math.log(S_test_safe/K) + (r + 0.5*sigma**2)*T) / (sigma*tf.sqrt(T))
-    d2 = d1 - sigma*tf.sqrt(T)
+    epsilon = tf.constant(1e-10, dtype=tf.float32)  # Small number to avoid log(0)
+    S_test_safe = tf.maximum(S_test_tensor, epsilon)  # Ensure positive values
+    
+    # Calculate d1 and d2 using TensorFlow operations
+    d1 = (tf.math.log(S_test_safe/K_tensor) + (r_tensor + 0.5*sigma_tensor**2)*T_tensor) / (sigma_tensor*tf.sqrt(T_tensor))
+    d2 = d1 - sigma_tensor*tf.sqrt(T_tensor)
     
     # Use TensorFlow's normal CDF
-    V_analytical = S_test * tf.math.erf(d1/tf.sqrt(2.0))/2.0 + S_test/2.0 - \
-                  K * tf.exp(-r*T) * (tf.math.erf(d2/tf.sqrt(2.0))/2.0 + 0.5)
+    V_analytical = S_test_tensor * tf.math.erf(d1/tf.sqrt(2.0))/2.0 + S_test_tensor/2.0 - \
+                  K_tensor * tf.exp(-r_tensor*T_tensor) * (tf.math.erf(d2/tf.sqrt(2.0))/2.0 + 0.5)
+    
+    # Convert back to numpy for plotting
+    V_analytical = V_analytical.numpy()
+    V_pred = V_pred.numpy()
     
     # Plot comparison
     fig = plot_results(S_test, V_pred, V_analytical, show_intrinsic=False)
