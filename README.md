@@ -1,5 +1,9 @@
 # 📊 Real-Time Option Pricing with PINN
+
+
 [https://bsm-pinn.streamlit.app/](https://bsm-pinn.streamlit.app/)
+
+
 A **Streamlit-based web application** that provides advanced tools for option pricing using both traditional and modern approaches:
 
 1. **Black-Scholes Model** - The classical analytical solution
@@ -140,8 +144,8 @@ Contributions are welcome! Please follow these steps:
 
 ## 📧 Contact
 
-[Your Name]  
-[Your LinkedIn] | [Your GitHub]
+[Sri Sahitih S]  
+[sahithi-sss] | [https://github.com/sahithi-sss]
 
 ---
 
