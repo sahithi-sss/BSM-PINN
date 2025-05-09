@@ -88,19 +88,6 @@ def boundary_loss(model):
     V_pred = model(tf.concat([S_boundary, T_boundary], axis=1))
     return tf.reduce_mean(tf.square(V_pred - V_terminal))
 
-# Training function
-@tf.function(reduce_retracing=True)
-def train_step(model, optimizer, S_sample, t_sample):
-    with tf.GradientTape() as tape:
-        loss_pde = bs_pde_loss(model, S_sample, t_sample)
-        loss_boundary = boundary_loss(model)
-        loss = loss_pde + loss_boundary  # Combined loss
-
-    grads = tape.gradient(loss, model.trainable_variables)
-    if grads is not None:
-        optimizer.apply_gradients(zip(grads, model.trainable_variables))
-    return loss
-
 def train_pinn(model, epochs=5000, lr=0.001):
     # Learning rate schedule
     lr_schedule = ExponentialDecay(
@@ -119,7 +106,14 @@ def train_pinn(model, epochs=5000, lr=0.001):
         S_sample = tf.random.uniform((100, 1), minval=0, maxval=150, dtype=tf.float32)
         t_sample = tf.random.uniform((100, 1), minval=0, maxval=T, dtype=tf.float32)
 
-        loss = train_step(model, optimizer, S_sample, t_sample)
+        with tf.GradientTape() as tape:
+            loss_pde = bs_pde_loss(model, S_sample, t_sample)
+            loss_boundary = boundary_loss(model)
+            # Equal weighting of losses
+            loss = loss_pde + loss_boundary
+
+        grads = tape.gradient(loss, model.trainable_variables)
+        optimizer.apply_gradients(zip(grads, model.trainable_variables))
 
         if epoch % 100 == 0:  # Show more frequent updates
             loss_history.append(float(loss.numpy()))
@@ -199,7 +193,6 @@ else:
     st.subheader("Training Progress")
     # Build and train the PINN model
     pinn_model = build_model()
-    optimizer = tf.keras.optimizers.Adam(learning_rate=0.001)
     epochs = 5000
     loss_list = []
     loss_placeholder = st.empty()
@@ -207,22 +200,10 @@ else:
     # Add a progress bar
     progress_bar = st.progress(0)
     
-    for epoch in range(epochs+1):
-        S_sample = tf.random.uniform((100, 1), minval=0, maxval=150, dtype=tf.float32)
-        t_sample = tf.random.uniform((100, 1), minval=0, maxval=T, dtype=tf.float32)
-        
-        loss = train_step(pinn_model, optimizer, S_sample, t_sample)
-        
-        # Update progress bar
-        progress_bar.progress((epoch + 1) / (epochs + 1))
-        
-        if epoch % 500 == 0 or epoch == epochs:
-            loss_list.append((epoch, float(loss.numpy())))
-            # Show the list as it grows
-            loss_placeholder.text("\n".join([f"Epoch {e}, Loss: {l:.6f}" for e, l in loss_list]))
+    # Train the model
+    loss_history = train_pinn(pinn_model, epochs=epochs)
     
-    # Final loss display
-    loss_placeholder.text("\n".join([f"Epoch {e}, Loss: {l:.6f}" for e, l in loss_list]))
+    # Display final results
     st.success("Training complete!")
     
     # Generate and display comparison graph after training
