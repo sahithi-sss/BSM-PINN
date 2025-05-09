@@ -5,12 +5,12 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # Suppress TensorFlow logging
 import numpy as np
 import tensorflow as tf
 from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Dense, Input, BatchNormalization
+from tensorflow.keras.layers import Dense, BatchNormalization
+from tensorflow.keras.optimizers.schedules import ExponentialDecay
 import matplotlib.pyplot as plt
 import streamlit as st
 import pandas as pd
 from scipy.stats import norm
-from tensorflow.keras.optimizers.schedules import ExponentialDecay
 
 # Page configuration
 st.set_page_config(
@@ -45,16 +45,15 @@ T = 1.0      # Time to maturity (1 year)
 
 # Create the neural network model
 def build_model():
-    inputs = Input(shape=(2,))
-    x = Dense(64, activation='tanh')(inputs)
-    x = BatchNormalization()(x)
-    x = Dense(64, activation='tanh')(x)
-    x = BatchNormalization()(x)
-    x = Dense(64, activation='tanh')(x)
-    x = BatchNormalization()(x)
-    outputs = Dense(1, activation='linear')(x)  # Output: Option price
-    
-    model = tf.keras.Model(inputs=inputs, outputs=outputs)
+    model = Sequential([
+        Dense(64, activation='tanh', input_shape=(2,)),
+        BatchNormalization(),
+        Dense(64, activation='tanh'),
+        BatchNormalization(),
+        Dense(64, activation='tanh'),
+        BatchNormalization(),
+        Dense(1, activation='linear')  # Output: Option price
+    ])
     return model
 
 # Define the Black-Scholes PDE residual loss function
@@ -78,20 +77,20 @@ def bs_pde_loss(model, S, t):
 
 # Define the boundary condition loss
 def boundary_loss(model):
-    S_boundary = tf.linspace(0.0, 150.0, 100)
-    S_boundary = tf.reshape(S_boundary, (-1, 1))
-    S_boundary = tf.cast(S_boundary, dtype=tf.float32)
+    S_boundary = np.linspace(0, 150, 100).reshape(-1, 1)
+    S_boundary = tf.convert_to_tensor(S_boundary, dtype=tf.float32)
     
-    T_boundary = tf.ones_like(S_boundary) * T
-    V_terminal = tf.maximum(S_boundary - K, 0.0)  # Payoff function for European Call
+    T_boundary = np.ones_like(S_boundary) * T
+    V_terminal = tf.maximum(S_boundary - K, 0)  # Payoff function for European Call
 
     V_pred = model(tf.concat([S_boundary, T_boundary], axis=1))
     return tf.reduce_mean(tf.square(V_pred - V_terminal))
 
-def train_pinn(model, epochs=5000, lr=0.001):
+# Training function
+def train_pinn(model, epochs=5000, initial_lr=0.001):
     # Learning rate schedule
     lr_schedule = ExponentialDecay(
-        initial_learning_rate=lr,
+        initial_learning_rate=initial_lr,
         decay_steps=1000,
         decay_rate=0.9
     )
@@ -124,20 +123,6 @@ def train_pinn(model, epochs=5000, lr=0.001):
     progress_bar.progress(1.0)
     return loss_history
 
-# Function to plot results
-def plot_results(S_test, V_pred, V_analytical=None, show_intrinsic=False):
-    fig, ax = plt.subplots(figsize=(10, 6))
-    ax.plot(S_test, V_pred, label="Predicted Price (PINN)")
-    if V_analytical is not None:
-        ax.plot(S_test, V_analytical, '--', label="Analytical Solution")
-    if show_intrinsic:
-        ax.plot(S_test, np.maximum(S_test - K, 0), ':', label="Intrinsic Value")
-    ax.set_xlabel("Stock Price (S)")
-    ax.set_ylabel("Option Price (V)")
-    ax.legend()
-    ax.set_title("Black-Scholes Option Pricing using PINNs")
-    return fig
-
 # Initialize session state for storing static results
 if 'static_results' not in st.session_state:
     # Load your pre-computed results
@@ -167,13 +152,15 @@ if 'show_dynamic' not in st.session_state:
 if not st.session_state.show_dynamic:
     st.subheader("Pre-computed Results")
     # Plot static results
-    fig_static = plot_results(
-        st.session_state.static_results[0],
-        st.session_state.static_results[1],
-        np.maximum(st.session_state.static_results[0] - K, 0),
-        show_intrinsic=True
-    )
-    st.pyplot(fig_static)
+    plt.figure(figsize=(10, 6))
+    plt.plot(st.session_state.static_results[0], st.session_state.static_results[1], label="Predicted Price (PINN)")
+    plt.plot(st.session_state.static_results[0], np.maximum(st.session_state.static_results[0] - K, 0), '--', label="Intrinsic Value")
+    plt.xlabel("Stock Price (S)")
+    plt.ylabel("Option Price (V)")
+    plt.legend()
+    plt.title("Black-Scholes Option Pricing using PINNs")
+    st.pyplot(plt.gcf())
+    
     # Show static loss list
     st.markdown("**Epoch/Loss values:**")
     for epoch, loss in static_loss_list:
@@ -187,13 +174,6 @@ else:
     # Build and train the PINN model
     pinn_model = build_model()
     epochs = 5000
-    loss_list = []
-    loss_placeholder = st.empty()
-    
-    # Add a progress bar
-    progress_bar = st.progress(0)
-    
-    # Train the model
     loss_history = train_pinn(pinn_model, epochs=epochs)
     
     # Display final results
@@ -204,35 +184,19 @@ else:
     S_test = np.linspace(0, 150, 100).reshape(-1, 1)
     t_test = np.ones_like(S_test) * 0.5  # Mid-time horizon (t = 0.5)
     
-    # Convert all inputs to TensorFlow tensors with consistent dtype
     S_test_tensor = tf.convert_to_tensor(S_test, dtype=tf.float32)
     t_test_tensor = tf.convert_to_tensor(t_test, dtype=tf.float32)
-    K_tensor = tf.constant(K, dtype=tf.float32)
-    T_tensor = tf.constant(T, dtype=tf.float32)
-    r_tensor = tf.constant(r, dtype=tf.float32)
-    sigma_tensor = tf.constant(sigma, dtype=tf.float32)
     
-    V_pred = pinn_model(tf.concat([S_test_tensor, t_test_tensor], axis=1))
+    V_pred = pinn_model(tf.concat([S_test_tensor, t_test_tensor], axis=1)).numpy()
     
-    # Calculate analytical solution (Black-Scholes formula for European call)
-    epsilon = tf.constant(1e-10, dtype=tf.float32)  # Small number to avoid log(0)
-    S_test_safe = tf.maximum(S_test_tensor, epsilon)  # Ensure positive values
-    
-    # Calculate d1 and d2 using TensorFlow operations
-    d1 = (tf.math.log(S_test_safe/K_tensor) + (r_tensor + 0.5*sigma_tensor**2)*T_tensor) / (sigma_tensor*tf.sqrt(T_tensor))
-    d2 = d1 - sigma_tensor*tf.sqrt(T_tensor)
-    
-    # Use TensorFlow's normal CDF
-    V_analytical = S_test_tensor * tf.math.erf(d1/tf.sqrt(2.0))/2.0 + S_test_tensor/2.0 - \
-                  K_tensor * tf.exp(-r_tensor*T_tensor) * (tf.math.erf(d2/tf.sqrt(2.0))/2.0 + 0.5)
-    
-    # Convert back to numpy for plotting
-    V_analytical = V_analytical.numpy()
-    V_pred = V_pred.numpy()
-    
-    # Plot comparison
-    fig = plot_results(S_test, V_pred, V_analytical, show_intrinsic=False)
-    st.pyplot(fig)
+    plt.figure(figsize=(10, 6))
+    plt.plot(S_test, V_pred, label="Predicted Price (PINN)")
+    plt.plot(S_test, np.maximum(S_test - K, 0), '--', label="Intrinsic Value")
+    plt.xlabel("Stock Price (S)")
+    plt.ylabel("Option Price (V)")
+    plt.legend()
+    plt.title("Black-Scholes Option Pricing using PINNs")
+    st.pyplot(plt.gcf())
 
 st.markdown("---")
 st.subheader("About PINN Model")
