@@ -174,6 +174,10 @@ if not st.session_state.show_dynamic:
         show_intrinsic=True
     )
     st.pyplot(fig_static)
+    # Show static loss list
+    st.markdown("**Epoch/Loss values:**")
+    for epoch, loss in static_loss_list:
+        st.text(f"Epoch {epoch}, Loss: {loss:.6f}")
     # Button to run model dynamically
     if st.button("Run Model Dynamically", use_container_width=True):
         st.session_state.show_dynamic = True
