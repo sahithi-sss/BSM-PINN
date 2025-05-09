@@ -174,7 +174,7 @@ if not st.session_state.show_dynamic:
     # Button to run model dynamically
     if st.button("Run Model Dynamically", use_container_width=True):
         st.session_state.show_dynamic = True
-        st.rerun()
+        st.experimental_rerun()
 else:
     st.subheader("Training Progress")
     # Build and train the PINN model
@@ -212,7 +212,7 @@ else:
     # Add a button to go back to static view
     if st.button("Show Static Results", use_container_width=True):
         st.session_state.show_dynamic = False
-        st.rerun()
+        st.experimental_rerun()
 
 st.markdown("---")
 st.subheader("About PINN Model")
@@ -224,15 +224,3 @@ Key features:
 - No need for labeled training data
 - Can handle complex boundary conditions and non-linear PDEs
 """)
-
-st.markdown("""
-    <style>
-        [data-testid="collapsedControl"] {display: none}
-        section[data-testid="stSidebar"] > div:first-child {display: none}
-        .main > div:first-child {display: none}
-        button[kind="headerNoPadding"] {display: none}
-        .st-emotion-cache-1dp5vir {display: none}
-        [data-testid="stSidebarNav"] {display: none !important}
-        .st-emotion-cache-16pwjcz {display: none}
-    </style>
-""", unsafe_allow_html=True)

@@ -134,14 +134,3 @@ st.markdown("""
 
 
 
-st.markdown("""
-    <style>
-        [data-testid="collapsedControl"] {display: none}
-        section[data-testid="stSidebar"] > div:first-child {display: none}
-        .main > div:first-child {display: none}
-        button[kind="headerNoPadding"] {display: none}
-        .st-emotion-cache-1dp5vir {display: none}
-        [data-testid="stSidebarNav"] {display: none !important}
-        .st-emotion-cache-16pwjcz {display: none}
-    </style>
-""", unsafe_allow_html=True)
