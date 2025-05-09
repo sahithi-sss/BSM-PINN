@@ -119,16 +119,17 @@ def train_pinn(model, epochs=5000, lr=0.001):
             loss_history.append(float(loss.numpy()))
             status_text.text(f"Epoch {epoch}, Loss: {loss.numpy():.6f}")
             progress_bar.progress(epoch / epochs)
-            
-            # Display loss history
-            loss_df = pd.DataFrame({
-                'Epoch': range(0, epoch + 1, 100),
-                'Loss': loss_history
-            })
-            st.line_chart(loss_df.set_index('Epoch'))
 
     status_text.text("Training complete!")
     progress_bar.progress(1.0)
+    
+    # Display final loss history at the end
+    loss_df = pd.DataFrame({
+        'Epoch': range(0, epochs + 1, 100),
+        'Loss': loss_history
+    })
+    st.line_chart(loss_df.set_index('Epoch'))
+    
     return loss_history
 
 # Function to plot results
