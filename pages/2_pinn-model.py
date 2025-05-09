@@ -96,10 +96,11 @@ def train_pinn(model, epochs=5000, initial_lr=0.001):
     )
     optimizer = tf.keras.optimizers.Adam(learning_rate=lr_schedule)
     
-    # Create a placeholder for training progress
     progress_bar = st.progress(0)
     status_text = st.empty()
+    log_placeholder = st.empty()
     loss_history = []
+    log_lines = []
     
     for epoch in range(epochs):
         S_sample = tf.random.uniform((100, 1), minval=0, maxval=150, dtype=tf.float32)
@@ -108,17 +109,22 @@ def train_pinn(model, epochs=5000, initial_lr=0.001):
         with tf.GradientTape() as tape:
             loss_pde = bs_pde_loss(model, S_sample, t_sample)
             loss_boundary = boundary_loss(model)
-            # Equal weighting of losses
             loss = loss_pde + loss_boundary
 
         grads = tape.gradient(loss, model.trainable_variables)
         optimizer.apply_gradients(zip(grads, model.trainable_variables))
 
-        if epoch % 100 == 0:  # Show more frequent updates
+        if epoch % 500 == 0:
+            log_line = f"Epoch {epoch}, Loss: {loss.numpy():.6f}"
+            log_lines.append(log_line)
+            log_placeholder.text("\n".join(log_lines))
+        if epoch % 100 == 0:
             loss_history.append(float(loss.numpy()))
             status_text.text(f"Epoch {epoch}, Loss: {loss.numpy():.6f}")
             progress_bar.progress(epoch / epochs)
 
+    log_lines.append("Training complete!")
+    log_placeholder.text("\n".join(log_lines))
     status_text.text("Training complete!")
     progress_bar.progress(1.0)
     return loss_history
