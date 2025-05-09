@@ -190,7 +190,7 @@ else:
     progress_bar = st.progress(0)
     
     for epoch in range(epochs+1):
-        S_sample = tf.random.uniform((100, 1), minval=0, maxval=200, dtype=tf.float32)
+        S_sample = tf.random.uniform((100, 1), minval=0, maxval=150, dtype=tf.float32)
         t_sample = tf.random.uniform((100, 1), minval=0, maxval=T, dtype=tf.float32)
         
         with tf.GradientTape() as tape:
