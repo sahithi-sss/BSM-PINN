@@ -45,15 +45,16 @@ T = 1.0      # Time to maturity (1 year)
 
 # Create the neural network model
 def build_model():
-    model = Sequential([
-        Dense(64, activation='tanh', input_shape=(2,)),
-        BatchNormalization(),
-        Dense(64, activation='tanh'),
-        BatchNormalization(),
-        Dense(64, activation='tanh'),
-        BatchNormalization(),
-        Dense(1, activation='linear')  # Output: Option price
-    ])
+    inputs = Input(shape=(2,))
+    x = Dense(64, activation='tanh')(inputs)
+    x = BatchNormalization()(x)
+    x = Dense(64, activation='tanh')(x)
+    x = BatchNormalization()(x)
+    x = Dense(64, activation='tanh')(x)
+    x = BatchNormalization()(x)
+    outputs = Dense(1, activation='linear')(x)  # Output: Option price
+    
+    model = tf.keras.Model(inputs=inputs, outputs=outputs)
     return model
 
 # Define the Black-Scholes PDE residual loss function
@@ -77,17 +78,18 @@ def bs_pde_loss(model, S, t):
 
 # Define the boundary condition loss
 def boundary_loss(model):
-    S_boundary = np.linspace(0, 150, 100).reshape(-1, 1)
-    S_boundary = tf.convert_to_tensor(S_boundary, dtype=tf.float32)
+    S_boundary = tf.linspace(0.0, 150.0, 100)
+    S_boundary = tf.reshape(S_boundary, (-1, 1))
+    S_boundary = tf.cast(S_boundary, dtype=tf.float32)
     
     T_boundary = tf.ones_like(S_boundary) * T
-    V_terminal = tf.maximum(S_boundary - K, 0)  # Payoff function for European Call
+    V_terminal = tf.maximum(S_boundary - K, 0.0)  # Payoff function for European Call
 
     V_pred = model(tf.concat([S_boundary, T_boundary], axis=1))
     return tf.reduce_mean(tf.square(V_pred - V_terminal))
 
 # Training function
-@tf.function
+@tf.function(reduce_retracing=True)
 def train_step(model, optimizer, S_sample, t_sample):
     with tf.GradientTape() as tape:
         loss_pde = bs_pde_loss(model, S_sample, t_sample)
@@ -235,9 +237,13 @@ else:
     
     # Calculate analytical solution (Black-Scholes formula for European call)
     epsilon = 1e-10  # Small number to avoid log(0)
-    d1 = (np.log((S_test + epsilon)/K) + (r + 0.5*sigma**2)*T) / (sigma*np.sqrt(T))
-    d2 = d1 - sigma*np.sqrt(T)
-    V_analytical = S_test * norm.cdf(d1) - K * np.exp(-r*T) * norm.cdf(d2)
+    S_test_safe = tf.maximum(S_test, epsilon)  # Ensure positive values
+    d1 = (tf.math.log(S_test_safe/K) + (r + 0.5*sigma**2)*T) / (sigma*tf.sqrt(T))
+    d2 = d1 - sigma*tf.sqrt(T)
+    
+    # Use TensorFlow's normal CDF
+    V_analytical = S_test * tf.math.erf(d1/tf.sqrt(2.0))/2.0 + S_test/2.0 - \
+                  K * tf.exp(-r*T) * (tf.math.erf(d2/tf.sqrt(2.0))/2.0 + 0.5)
     
     # Plot comparison
     fig = plot_results(S_test, V_pred, V_analytical, show_intrinsic=False)
