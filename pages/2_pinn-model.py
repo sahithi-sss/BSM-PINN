@@ -216,24 +216,18 @@ else:
     
     # Generate and display comparison graph after training
     st.subheader("Comparison of PINN vs Analytical Solution")
-    S_test = tf.linspace(0.0, 150.0, 100)
-    S_test = tf.reshape(S_test, (-1, 1))
-    t_test = tf.zeros_like(S_test)  # Evaluate at t=0
-    V_pred = pinn_model(tf.concat([S_test, t_test], axis=1))
+    S_test = np.linspace(0, 150, 100).reshape(-1, 1)
+    t_test = np.zeros_like(S_test)  # Evaluate at t=0
+    V_pred = pinn_model.predict(tf.concat([S_test, t_test], axis=1))
     
     # Calculate analytical solution (Black-Scholes formula for European call)
     epsilon = 1e-10  # Small number to avoid log(0)
-    d1 = (tf.math.log((S_test + epsilon)/K) + (r + 0.5*sigma**2)*T) / (sigma*tf.math.sqrt(T))
-    d2 = d1 - sigma*tf.math.sqrt(T)
-    V_analytical = S_test * tf.math.erf(d1/tf.math.sqrt(2.0))/2.0 + S_test/2.0 - K * tf.math.exp(-r*T) * (tf.math.erf(d2/tf.math.sqrt(2.0))/2.0 + 0.5)
-    
-    # Convert to numpy for plotting
-    S_test_np = S_test.numpy()
-    V_pred_np = V_pred.numpy()
-    V_analytical_np = V_analytical.numpy()
+    d1 = (np.log((S_test + epsilon)/K) + (r + 0.5*sigma**2)*T) / (sigma*np.sqrt(T))
+    d2 = d1 - sigma*np.sqrt(T)
+    V_analytical = S_test * norm.cdf(d1) - K * np.exp(-r*T) * norm.cdf(d2)
     
     # Plot comparison
-    fig = plot_results(S_test_np, V_pred_np, V_analytical_np, show_intrinsic=False)
+    fig = plot_results(S_test, V_pred, V_analytical, show_intrinsic=False)
     st.pyplot(fig)
 
 st.markdown("---")
