@@ -8,6 +8,7 @@ from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense, Input
 import matplotlib.pyplot as plt
 import streamlit as st
+import pandas as pd
 
 # Page configuration
 st.set_page_config(
@@ -88,6 +89,7 @@ def train_pinn(model, epochs=5000, lr=0.001):
     # Create a placeholder for training progress
     progress_bar = st.progress(0)
     status_text = st.empty()
+    loss_history = []
     
     for epoch in range(epochs):
         S_sample = tf.random.uniform((100, 1), minval=0, maxval=200, dtype=tf.float32)
@@ -101,36 +103,69 @@ def train_pinn(model, epochs=5000, lr=0.001):
         grads = tape.gradient(loss, model.trainable_variables)
         optimizer.apply_gradients(zip(grads, model.trainable_variables))
 
-        if epoch % 500 == 0:
+        if epoch % 100 == 0:  # Show more frequent updates
+            loss_history.append(loss.numpy())
             status_text.text(f"Epoch {epoch}, Loss: {loss.numpy():.6f}")
             progress_bar.progress(epoch / epochs)
+            
+            # Display loss history
+            loss_df = pd.DataFrame({
+                'Epoch': range(0, epoch + 1, 100),
+                'Loss': loss_history
+            })
+            st.line_chart(loss_df.set_index('Epoch'))
 
     status_text.text("Training complete!")
     progress_bar.progress(1.0)
+    return loss_history
 
-# Build and train the PINN model
-pinn_model = build_model()
-train_pinn(pinn_model, epochs=5000)
+# Function to plot results
+def plot_results(S_test, V_pred, V_analytical=None):
+    fig, ax = plt.subplots(figsize=(10, 6))
+    ax.plot(S_test, V_pred, label="Predicted Price (PINN)")
+    if V_analytical is not None:
+        ax.plot(S_test, V_analytical, '--', label="Analytical Solution")
+    ax.plot(S_test, np.maximum(S_test - K, 0), ':', label="Intrinsic Value")
+    ax.set_xlabel("Stock Price (S)")
+    ax.set_ylabel("Option Price (V)")
+    ax.legend()
+    ax.set_title("Black-Scholes Option Pricing using PINNs")
+    return fig
 
-# Generate test data
-S_test = np.linspace(0, 200, 100).reshape(-1, 1)
-t_test = np.ones_like(S_test) * 0.5  # Mid-time horizon (t = 0.5)
+# Initialize session state for storing static results
+if 'static_results' not in st.session_state:
+    # TODO: Replace these with your pre-computed results
+    S_test = np.linspace(0, 200, 100).reshape(-1, 1)
+    V_static = np.maximum(S_test - K, 0)  # Placeholder - replace with your actual results
+    st.session_state.static_results = (S_test, V_static)
 
-S_test_tensor = tf.convert_to_tensor(S_test, dtype=tf.float32)
-t_test_tensor = tf.convert_to_tensor(t_test, dtype=tf.float32)
+# Display static results first
+st.subheader("Pre-computed Results")
+fig_static = plot_results(st.session_state.static_results[0], st.session_state.static_results[1])
+st.pyplot(fig_static)
 
-# Predict option prices
-V_pred = pinn_model(tf.concat([S_test_tensor, t_test_tensor], axis=1)).numpy()
-
-# Plot the learned option price function
-fig, ax = plt.subplots(figsize=(10, 6))
-ax.plot(S_test, V_pred, label="Predicted Price (PINN)")
-ax.plot(S_test, np.maximum(S_test - K, 0), '--', label="Intrinsic Value")
-ax.set_xlabel("Stock Price (S)")
-ax.set_ylabel("Option Price (V)")
-ax.legend()
-ax.set_title("Black-Scholes Option Pricing using PINNs")
-st.pyplot(fig)
+# Add button to run model dynamically
+if st.button("Run Model Dynamically", use_container_width=True):
+    st.subheader("Training Progress")
+    
+    # Build and train the PINN model
+    pinn_model = build_model()
+    loss_history = train_pinn(pinn_model, epochs=5000)
+    
+    # Generate test data
+    S_test = np.linspace(0, 200, 100).reshape(-1, 1)
+    t_test = np.ones_like(S_test) * 0.5  # Mid-time horizon (t = 0.5)
+    
+    S_test_tensor = tf.convert_to_tensor(S_test, dtype=tf.float32)
+    t_test_tensor = tf.convert_to_tensor(t_test, dtype=tf.float32)
+    
+    # Predict option prices
+    V_pred = pinn_model(tf.concat([S_test_tensor, t_test_tensor], axis=1)).numpy()
+    
+    # Plot the results
+    st.subheader("Dynamic Results")
+    fig_dynamic = plot_results(S_test, V_pred)
+    st.pyplot(fig_dynamic)
 
 st.markdown("---")
 st.subheader("About PINN Model")
