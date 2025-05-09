@@ -5,11 +5,12 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # Suppress TensorFlow logging
 import numpy as np
 import tensorflow as tf
 from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Dense, Input
+from tensorflow.keras.layers import Dense, Input, BatchNormalization
 import matplotlib.pyplot as plt
 import streamlit as st
 import pandas as pd
 from scipy.stats import norm
+from tensorflow.keras.optimizers.schedules import ExponentialDecay
 
 # Page configuration
 st.set_page_config(
@@ -45,10 +46,12 @@ T = 1.0      # Time to maturity (1 year)
 # Create the neural network model
 def build_model():
     model = Sequential([
-        Input(shape=(2,)),
+        Dense(64, activation='tanh', input_shape=(2,)),
+        BatchNormalization(),
         Dense(64, activation='tanh'),
+        BatchNormalization(),
         Dense(64, activation='tanh'),
-        Dense(64, activation='tanh'),
+        BatchNormalization(),
         Dense(1, activation='linear')  # Output: Option price
     ])
     return model
@@ -74,10 +77,10 @@ def bs_pde_loss(model, S, t):
 
 # Define the boundary condition loss
 def boundary_loss(model):
-    S_boundary = tf.linspace(0.0, 150.0, 100)
-    S_boundary = tf.reshape(S_boundary, (-1, 1))
+    S_boundary = np.linspace(0, 150, 100).reshape(-1, 1)
+    S_boundary = tf.convert_to_tensor(S_boundary, dtype=tf.float32)
     
-    T_boundary = tf.ones_like(S_boundary) * T
+    T_boundary = np.ones_like(S_boundary) * T
     V_terminal = tf.maximum(S_boundary - K, 0)  # Payoff function for European Call
 
     V_pred = model(tf.concat([S_boundary, T_boundary], axis=1))
@@ -97,7 +100,13 @@ def train_step(model, optimizer, S_sample, t_sample):
     return loss
 
 def train_pinn(model, epochs=5000, lr=0.001):
-    optimizer = tf.keras.optimizers.Adam(learning_rate=lr)
+    # Learning rate schedule
+    lr_schedule = ExponentialDecay(
+        initial_learning_rate=lr,
+        decay_steps=1000,
+        decay_rate=0.9
+    )
+    optimizer = tf.keras.optimizers.Adam(learning_rate=lr_schedule)
     
     # Create a placeholder for training progress
     progress_bar = st.progress(0)
@@ -217,8 +226,12 @@ else:
     # Generate and display comparison graph after training
     st.subheader("Comparison of PINN vs Analytical Solution")
     S_test = np.linspace(0, 150, 100).reshape(-1, 1)
-    t_test = np.zeros_like(S_test)  # Evaluate at t=0
-    V_pred = pinn_model.predict(tf.concat([S_test, t_test], axis=1))
+    t_test = np.ones_like(S_test) * 0.5  # Mid-time horizon (t = 0.5)
+    
+    S_test_tensor = tf.convert_to_tensor(S_test, dtype=tf.float32)
+    t_test_tensor = tf.convert_to_tensor(t_test, dtype=tf.float32)
+    
+    V_pred = pinn_model(tf.concat([S_test_tensor, t_test_tensor], axis=1))
     
     # Calculate analytical solution (Black-Scholes formula for European call)
     epsilon = 1e-10  # Small number to avoid log(0)
