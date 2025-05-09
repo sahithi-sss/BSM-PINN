@@ -84,6 +84,18 @@ def boundary_loss(model):
     return tf.reduce_mean(tf.square(V_pred - V_terminal))
 
 # Training function
+@tf.function
+def train_step(model, optimizer, S_sample, t_sample):
+    with tf.GradientTape() as tape:
+        loss_pde = bs_pde_loss(model, S_sample, t_sample)
+        loss_boundary = boundary_loss(model)
+        loss = loss_pde + loss_boundary  # Combined loss
+
+    grads = tape.gradient(loss, model.trainable_variables)
+    if grads is not None:
+        optimizer.apply_gradients(zip(grads, model.trainable_variables))
+    return loss
+
 def train_pinn(model, epochs=5000, lr=0.001):
     optimizer = tf.keras.optimizers.Adam(learning_rate=lr)
     
@@ -96,14 +108,7 @@ def train_pinn(model, epochs=5000, lr=0.001):
         S_sample = tf.random.uniform((100, 1), minval=0, maxval=150, dtype=tf.float32)
         t_sample = tf.random.uniform((100, 1), minval=0, maxval=T, dtype=tf.float32)
 
-        with tf.GradientTape() as tape:
-            loss_pde = bs_pde_loss(model, S_sample, t_sample)
-            loss_boundary = boundary_loss(model)
-            loss = loss_pde + loss_boundary  # Combined loss
-
-        grads = tape.gradient(loss, model.trainable_variables)
-        if grads is not None:  # Add check for None gradients
-            optimizer.apply_gradients(zip(grads, model.trainable_variables))
+        loss = train_step(model, optimizer, S_sample, t_sample)
 
         if epoch % 100 == 0:  # Show more frequent updates
             loss_history.append(float(loss.numpy()))
@@ -195,14 +200,7 @@ else:
         S_sample = tf.random.uniform((100, 1), minval=0, maxval=150, dtype=tf.float32)
         t_sample = tf.random.uniform((100, 1), minval=0, maxval=T, dtype=tf.float32)
         
-        with tf.GradientTape() as tape:
-            loss_pde = bs_pde_loss(pinn_model, S_sample, t_sample)
-            loss_boundary = boundary_loss(pinn_model)
-            loss = loss_pde + loss_boundary
-            
-        grads = tape.gradient(loss, pinn_model.trainable_variables)
-        if grads is not None:  # Add check for None gradients
-            optimizer.apply_gradients(zip(grads, pinn_model.trainable_variables))
+        loss = train_step(pinn_model, optimizer, S_sample, t_sample)
         
         # Update progress bar
         progress_bar.progress((epoch + 1) / (epochs + 1))
@@ -223,7 +221,8 @@ else:
     V_pred = pinn_model.predict(tf.concat([S_test, t_test], axis=1))
     
     # Calculate analytical solution (Black-Scholes formula for European call)
-    d1 = (np.log(S_test/K) + (r + 0.5*sigma**2)*T) / (sigma*np.sqrt(T))
+    epsilon = 1e-10  # Small number to avoid log(0)
+    d1 = (np.log((S_test + epsilon)/K) + (r + 0.5*sigma**2)*T) / (sigma*np.sqrt(T))
     d2 = d1 - sigma*np.sqrt(T)
     V_analytical = S_test * norm.cdf(d1) - K * np.exp(-r*T) * norm.cdf(d2)
     
