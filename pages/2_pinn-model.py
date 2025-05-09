@@ -174,7 +174,7 @@ if not st.session_state.show_dynamic:
     # Button to run model dynamically
     if st.button("Run Model Dynamically", use_container_width=True):
         st.session_state.show_dynamic = True
-        st.experimental_rerun()
+        st.rerun()
 else:
     st.subheader("Training Progress")
     # Build and train the PINN model
@@ -183,6 +183,10 @@ else:
     epochs = 5000
     loss_list = []
     loss_placeholder = st.empty()
+    
+    # Add a progress bar
+    progress_bar = st.progress(0)
+    
     for epoch in range(epochs+1):
         S_sample = tf.random.uniform((100, 1), minval=0, maxval=200, dtype=tf.float32)
         t_sample = tf.random.uniform((100, 1), minval=0, maxval=T, dtype=tf.float32)
@@ -192,23 +196,23 @@ else:
             loss = loss_pde + loss_boundary
         grads = tape.gradient(loss, pinn_model.trainable_variables)
         optimizer.apply_gradients(zip(grads, pinn_model.trainable_variables))
+        
+        # Update progress bar
+        progress_bar.progress((epoch + 1) / (epochs + 1))
+        
         if epoch % 500 == 0 or epoch == epochs:
             loss_list.append((epoch, float(loss.numpy())))
             # Show the list as it grows
             loss_placeholder.text("\n".join([f"Epoch {e}, Loss: {l:.6f}" for e, l in loss_list]))
+    
+    # Final loss display
     loss_placeholder.text("\n".join([f"Epoch {e}, Loss: {l:.6f}" for e, l in loss_list]))
     st.success("Training complete!")
-    # Show only the final graph
-    S_test = np.linspace(0, 200, 100).reshape(-1, 1)
-    t_test = np.ones_like(S_test) * 0.5
-    S_test_tensor = tf.convert_to_tensor(S_test, dtype=tf.float32)
-    t_test_tensor = tf.convert_to_tensor(t_test, dtype=tf.float32)
-    V_pred = pinn_model(tf.concat([S_test_tensor, t_test_tensor], axis=1)).numpy()
-    fig_final = plot_results(S_test, V_pred, np.maximum(S_test - K, 0))
-    st.subheader("Final Model Output after 5000 Epochs")
-    st.pyplot(fig_final)
-    st.markdown("**X-axis:** Stock Price (S)")
-    st.markdown("**Y-axis:** Option Price (V)")
+    
+    # Add a button to go back to static view
+    if st.button("Show Static Results", use_container_width=True):
+        st.session_state.show_dynamic = False
+        st.rerun()
 
 st.markdown("---")
 st.subheader("About PINN Model")
