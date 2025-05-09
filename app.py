@@ -29,10 +29,12 @@ st.markdown("""
 # Create radio buttons for model selection
 selected_model = st.radio(
     "Select an Options Pricing Model",
-    ["Black-Scholes Model"]
+    ["Black-Scholes Model", "PINN Model Comparison with Analytical Solution"]
 )
 
 # Add a button to navigate to the selected model
-if st.button("Show Model", use_container_width=True):
+if st.button("Go to Page", use_container_width=True):
     if selected_model == "Black-Scholes Model":
         st.switch_page("pages/1_black-scholes-model.py")
+    elif selected_model == "PINN Model Comparison with Analytical Solution":
+        st.switch_page("pages/2_pinn-model.py")
