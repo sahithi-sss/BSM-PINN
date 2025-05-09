@@ -191,12 +191,15 @@ else:
     for epoch in range(epochs+1):
         S_sample = tf.random.uniform((100, 1), minval=0, maxval=200, dtype=tf.float32)
         t_sample = tf.random.uniform((100, 1), minval=0, maxval=T, dtype=tf.float32)
+        
         with tf.GradientTape() as tape:
             loss_pde = bs_pde_loss(pinn_model, S_sample, t_sample)
             loss_boundary = boundary_loss(pinn_model)
             loss = loss_pde + loss_boundary
+            
         grads = tape.gradient(loss, pinn_model.trainable_variables)
-        optimizer.apply_gradients(zip(grads, pinn_model.trainable_variables))
+        if grads is not None:  # Add check for None gradients
+            optimizer.apply_gradients(zip(grads, pinn_model.trainable_variables))
         
         # Update progress bar
         progress_bar.progress((epoch + 1) / (epochs + 1))

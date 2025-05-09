@@ -76,8 +76,25 @@ def create_sidebar():
     st.sidebar.header("Heatmap Configuration")
     params["S_min"] = st.sidebar.number_input("Min Stock Price (S_min)", min_value=0.01, value=params["S"] * 0.8, step=0.01)
     params["S_max"] = st.sidebar.number_input("Max Stock Price (S_max)", min_value=0.01, value=params["S"] * 1.2, step=0.01)
-    params["sigma_min"] = st.sidebar.number_input("Min Volatility (σ_min)", min_value=0.01, max_value=1.0, value=min(params["sigma"] * 0.5, 1.0), step=0.01)
-    params["sigma_max"] = st.sidebar.number_input("Max Volatility (σ_max)", min_value=0.01, max_value=1.0, value=min(params["sigma"] * 1.5, 1.0), step=0.01)
+    
+    # Ensure volatility values stay within valid range
+    sigma_min_value = min(params["sigma"] * 0.5, 1.0)
+    sigma_max_value = min(params["sigma"] * 1.5, 1.0)
+    
+    params["sigma_min"] = st.sidebar.number_input(
+        "Min Volatility (σ_min)",
+        min_value=0.01,
+        max_value=1.0,
+        value=sigma_min_value,
+        step=0.01
+    )
+    params["sigma_max"] = st.sidebar.number_input(
+        "Max Volatility (σ_max)",
+        min_value=0.01,
+        max_value=1.0,
+        value=sigma_max_value,
+        step=0.01
+    )
 
     return params
 
