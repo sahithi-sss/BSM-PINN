@@ -134,38 +134,81 @@ def plot_results(S_test, V_pred, V_analytical=None):
 
 # Initialize session state for storing static results
 if 'static_results' not in st.session_state:
-    # TODO: Replace these with your pre-computed results
-    S_test = np.linspace(0, 200, 100).reshape(-1, 1)
-    V_static = np.maximum(S_test - K, 0)  # Placeholder - replace with your actual results
+    # Load your pre-computed results
+    data = np.load('static_pinn_results.npz')
+    S_test = data['S_test']
+    V_static = data['V_pred']
     st.session_state.static_results = (S_test, V_static)
 
-# Display static results first
-st.subheader("Pre-computed Results")
-fig_static = plot_results(st.session_state.static_results[0], st.session_state.static_results[1])
-st.pyplot(fig_static)
+# Pre-computed loss values for static display
+static_loss_list = [
+    (0, 1703.023926),
+    (500, 385.576721),
+    (1000, 127.829712),
+    (1500, 48.017029),
+    (2000, 22.418875),
+    (2500, 8.966265),
+    (3000, 3.887328),
+    (3500, 1.840979),
+    (4000, 1.799492),
+    (4500, 1.340811)
+]
 
-# Add button to run model dynamically
-if st.button("Run Model Dynamically", use_container_width=True):
+# State to control display
+if 'show_dynamic' not in st.session_state:
+    st.session_state.show_dynamic = False
+
+if not st.session_state.show_dynamic:
+    st.subheader("Pre-computed Results")
+    # Plot static results
+    fig_static = plot_results(
+        st.session_state.static_results[0],
+        st.session_state.static_results[1],
+        np.maximum(st.session_state.static_results[0] - K, 0)
+    )
+    st.pyplot(fig_static)
+    # Show static loss list
+    st.markdown("**Epoch/Loss values:**")
+    for epoch, loss in static_loss_list:
+        st.text(f"Epoch {epoch}, Loss: {loss:.6f}")
+    # Button to run model dynamically
+    if st.button("Run Model Dynamically", use_container_width=True):
+        st.session_state.show_dynamic = True
+        st.experimental_rerun()
+else:
     st.subheader("Training Progress")
-    
     # Build and train the PINN model
     pinn_model = build_model()
-    loss_history = train_pinn(pinn_model, epochs=5000)
-    
-    # Generate test data
+    optimizer = tf.keras.optimizers.Adam(learning_rate=0.001)
+    epochs = 5000
+    loss_list = []
+    loss_placeholder = st.empty()
+    for epoch in range(epochs+1):
+        S_sample = tf.random.uniform((100, 1), minval=0, maxval=200, dtype=tf.float32)
+        t_sample = tf.random.uniform((100, 1), minval=0, maxval=T, dtype=tf.float32)
+        with tf.GradientTape() as tape:
+            loss_pde = bs_pde_loss(pinn_model, S_sample, t_sample)
+            loss_boundary = boundary_loss(pinn_model)
+            loss = loss_pde + loss_boundary
+        grads = tape.gradient(loss, pinn_model.trainable_variables)
+        optimizer.apply_gradients(zip(grads, pinn_model.trainable_variables))
+        if epoch % 500 == 0 or epoch == epochs:
+            loss_list.append((epoch, float(loss.numpy())))
+            # Show the list as it grows
+            loss_placeholder.text("\n".join([f"Epoch {e}, Loss: {l:.6f}" for e, l in loss_list]))
+    loss_placeholder.text("\n".join([f"Epoch {e}, Loss: {l:.6f}" for e, l in loss_list]))
+    st.success("Training complete!")
+    # Show only the final graph
     S_test = np.linspace(0, 200, 100).reshape(-1, 1)
-    t_test = np.ones_like(S_test) * 0.5  # Mid-time horizon (t = 0.5)
-    
+    t_test = np.ones_like(S_test) * 0.5
     S_test_tensor = tf.convert_to_tensor(S_test, dtype=tf.float32)
     t_test_tensor = tf.convert_to_tensor(t_test, dtype=tf.float32)
-    
-    # Predict option prices
     V_pred = pinn_model(tf.concat([S_test_tensor, t_test_tensor], axis=1)).numpy()
-    
-    # Plot the results
-    st.subheader("Dynamic Results")
-    fig_dynamic = plot_results(S_test, V_pred)
-    st.pyplot(fig_dynamic)
+    fig_final = plot_results(S_test, V_pred, np.maximum(S_test - K, 0))
+    st.subheader("Final Model Output after 5000 Epochs")
+    st.pyplot(fig_final)
+    st.markdown("**X-axis:** Stock Price (S)")
+    st.markdown("**Y-axis:** Option Price (V)")
 
 st.markdown("---")
 st.subheader("About PINN Model")
